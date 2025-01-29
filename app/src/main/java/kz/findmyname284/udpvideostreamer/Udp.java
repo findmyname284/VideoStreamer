@@ -1,12 +1,10 @@
 package kz.findmyname284.udpvideostreamer;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
@@ -32,10 +30,7 @@ public class Udp extends AppCompatActivity {
     private ExecutorService cameraExecutor;
     private ProcessCameraProvider cameraProvider;
     private final AtomicBoolean isStreaming = new AtomicBoolean(false);
-    private String SERVER_IP;
-    private final int SERVER_PORT = 8080; // UDP server port
-
-    private EditText ipInput;
+    private String ip;
     private Button btnStart, btnStop;
     private ProgressBar progressBar;
     private DatagramSocket udpSocket;
@@ -43,12 +38,24 @@ public class Udp extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_connection);
 
-        ipInput = findViewById(R.id.etServerIp);
+        progressBar = findViewById(R.id.progressBar);
+
         btnStart = findViewById(R.id.btnStart);
         btnStop = findViewById(R.id.btnStop);
-        progressBar = findViewById(R.id.progressBar);
+
+        Intent intent = getIntent();
+        if (intent != null) {
+            String receivedData = intent.getStringExtra("ip");
+            if (receivedData != null) {
+                this.ip = receivedData;
+            } else {
+                finish();
+            }
+        } else {
+            finish();
+        }
 
         setupButtons();
         cameraExecutor = Executors.newSingleThreadExecutor();
@@ -56,21 +63,18 @@ public class Udp extends AppCompatActivity {
 
     private void setupButtons() {
         btnStart.setOnClickListener(v -> {
-            if (checkPermissions()) {
-                progressBar.setVisibility(View.VISIBLE);
-                btnStart.setEnabled(false);
+            progressBar.setVisibility(View.VISIBLE);
+            btnStart.setEnabled(false);
 
-                String ip = ipInput.getText().toString();
-                if (ip.isEmpty()) {
-                    Toast.makeText(Udp.this, "Please enter server IP address", Toast.LENGTH_SHORT).show();
-                    progressBar.setVisibility(View.GONE);
-                    btnStart.setEnabled(true);
-                    return;
-                }
-
-                SERVER_IP = ip;
-                startStreaming();
+            if (ip.isEmpty()) {
+                Toast.makeText(Udp.this, "Please enter server IP address", Toast.LENGTH_SHORT).show();
+                progressBar.setVisibility(View.GONE);
+                btnStart.setEnabled(true);
+                finish();
+                return;
             }
+
+            startStreaming();
         });
 
         btnStop.setOnClickListener(v -> stopStreaming());
@@ -91,7 +95,6 @@ public class Udp extends AppCompatActivity {
     }
 
     private void stopStreaming() {
-        ipInput.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.GONE);
         btnStart.setEnabled(true);
         btnStop.setEnabled(false);
@@ -154,22 +157,14 @@ public class Udp extends AppCompatActivity {
 
     private void sendUdpData(byte[] data) {
         try {
-            InetAddress serverAddress = InetAddress.getByName(SERVER_IP);
-            DatagramPacket packet = new DatagramPacket(data, data.length, serverAddress, SERVER_PORT);
+            InetAddress serverAddress = InetAddress.getByName(ip);
+            int port = 8080;
+            DatagramPacket packet = new DatagramPacket(data, data.length, serverAddress, port);
             udpSocket.send(packet); // Send the packet
         } catch (IOException e) {
             Log.e("UDP", "Failed to send UDP packet", e);
             stopStreaming();
         }
-    }
-
-    private boolean checkPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_GRANTED) {
-            return true;
-        }
-        requestPermissions(new String[]{Manifest.permission.CAMERA}, 1);
-        return false;
     }
 
     @Override
